@@ -1,0 +1,47 @@
+{
+  "name": "lookbook",
+  "version": "1.0.0",
+  "description": "Lookbook — remote MCP for browsing design-inspiration galleries (Streamable HTTP + optional stdio)",
+  "type": "module",
+  "main": "dist/http.js",
+  "bin": {
+    "lookbook": "./dist/http.js",
+    "lookbook-stdio": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/http.js",
+    "start:stdio": "node dist/index.js",
+    "dev": "tsx src/http.ts",
+    "dev:stdio": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "tunnel": "bash scripts/tunnel.sh"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "lookbook",
+    "design",
+    "inspiration",
+    "cursor",
+    "model-context-protocol",
+    "streamable-http"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "cheerio": "^1.1.2",
+    "express": "^5.2.1",
+    "zod": "^3.25.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

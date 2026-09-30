@@ -1,0 +1,10 @@
+# Smithery — Lookbook remote MCP
+# Prefer hosting your own HTTPS /mcp endpoint, then publish the URL on Smithery.
+# Local/dev stdio still works via: npm run start:stdio
+
+startCommand:
+  type: http
+  configSchema:
+    type: object
+    properties: {}
+  exampleConfig: {}
