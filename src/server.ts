@@ -7,44 +7,36 @@ import {
   searchInspo,
 } from "./fetchers/index.js";
 import { buildReviewBrief } from "./tools/review-brief.js";
+import {
+  errorResult,
+  jsonResult,
+  visualResultForItems,
+  SHOWCASE_INSTRUCTION,
+} from "./lib/tool-result.js";
+import { scrubDeadThumbUrls } from "./lib/embed-images.js";
 
-function jsonResult(data: unknown) {
-  return {
-    content: [
-      {
-        type: "text" as const,
-        text: JSON.stringify(data, null, 2),
-      },
-    ],
-  };
-}
+const SERVER_INSTRUCTIONS = [
+  "Lookbook returns curated design-inspiration picks with REAL screenshots.",
+  SHOWCASE_INSTRUCTION,
+  "When search_inspo, browse_source, get_inspo_page, or review_brief returns type:\"image\" content blocks, render those images in the chat UI for the human — caption + link under each.",
+  "Structured JSON (title, url, sourceId, tags) is for citation only; it is not a substitute for showing the images.",
+  "Never invent or fabricate screenshots. If an image block is missing (failed fetch), say so and cite the page URL instead.",
+].join(" ");
 
-function errorResult(err: unknown) {
-  const message = err instanceof Error ? err.message : String(err);
-  return {
-    isError: true as const,
-    content: [
-      {
-        type: "text" as const,
-        text: JSON.stringify(
-          {
-            error: message,
-            hint: "If a site blocks bots, cite the public URL returned by list_sources / browse_source instead.",
-          },
-          null,
-          2,
-        ),
-      },
-    ],
-  };
-}
+const VISUAL_TOOL_SUFFIX =
+  " IMPORTANT: Successful results include MCP ImageContent blocks (base64). Clients MUST display each image inline in chat with a short caption and the page link — never text-only URL lists.";
 
 /** Create a Lookbook MCP server with all tools registered. */
 export function createLookbookServer(): McpServer {
-  const server = new McpServer({
-    name: "lookbook",
-    version: "1.0.0",
-  });
+  const server = new McpServer(
+    {
+      name: "lookbook",
+      version: "1.0.0",
+    },
+    {
+      instructions: SERVER_INSTRUCTIONS,
+    },
+  );
 
   server.registerTool(
     "list_sources",
@@ -75,7 +67,8 @@ export function createLookbookServer(): McpServer {
     {
       title: "Browse a design inspiration source",
       description:
-        "Browse a source gallery / recent items. Dedicated parsers for priority sources; generic OG/HTML extraction for others.",
+        "Browse a source gallery / recent items. Dedicated parsers for priority sources; generic OG/HTML extraction for others. Returns structured previews PLUS embedded screenshot image blocks for top picks." +
+        VISUAL_TOOL_SUFFIX,
       inputSchema: {
         sourceId: z
           .string()
@@ -95,7 +88,10 @@ export function createLookbookServer(): McpServer {
     async ({ sourceId, query, limit }) => {
       try {
         const result = await browseSource(sourceId, { query, limit });
-        return jsonResult(result);
+        return await visualResultForItems(result.items, (items) => ({
+          ...result,
+          items,
+        }));
       } catch (err) {
         return errorResult(err);
       }
@@ -107,7 +103,8 @@ export function createLookbookServer(): McpServer {
     {
       title: "Fetch one inspiration page",
       description:
-        "Fetch a single inspo URL (or sourceId + id) into a structured InspoPage for agent review. Returns real image URLs found in HTML only.",
+        "Fetch a single inspo URL (or sourceId + id) into a structured InspoPage for agent review. Returns real image URLs found in HTML only, plus an embedded screenshot image block when a working thumb is available." +
+        VISUAL_TOOL_SUFFIX,
       inputSchema: {
         url: z.string().url().optional().describe("Full page URL to fetch"),
         sourceId: z
@@ -122,8 +119,8 @@ export function createLookbookServer(): McpServer {
     },
     async ({ url, sourceId, id }) => {
       try {
-        const page = await getInspoPage({ url, sourceId, id });
-        return jsonResult(page);
+        const page = scrubDeadThumbUrls(await getInspoPage({ url, sourceId, id }));
+        return await visualResultForItems([page], (items) => items[0] ?? page);
       } catch (err) {
         return errorResult(err);
       }
@@ -135,7 +132,8 @@ export function createLookbookServer(): McpServer {
     {
       title: "Search Lookbook",
       description:
-        "Ranked search across Lookbook priority sources (Mobbin, Godly, Minimal Gallery, Cosmos, Awwwards, Curated, 60fps by default for UI queries). Returns ranked previews.",
+        "Ranked search across Lookbook priority sources (Mobbin, Godly, Minimal Gallery, Cosmos, Awwwards, Curated, 60fps by default for UI queries). Returns ranked previews PLUS embedded screenshot image blocks for top picks." +
+        VISUAL_TOOL_SUFFIX,
       inputSchema: {
         query: z.string().min(1).describe("Search query"),
         sourceIds: z
@@ -154,7 +152,10 @@ export function createLookbookServer(): McpServer {
     async ({ query, sourceIds, limit }) => {
       try {
         const result = await searchInspo({ query, sourceIds, limit });
-        return jsonResult(result);
+        return await visualResultForItems(result.items, (items) => ({
+          ...result,
+          items,
+        }));
       } catch (err) {
         return errorResult(err);
       }
@@ -166,7 +167,8 @@ export function createLookbookServer(): McpServer {
     {
       title: "Build an agent review brief",
       description:
-        "Given one or more inspo page URLs, return a compact brief: visual style tags, layout notes, typography/color cues, interaction notes, and why it might inspire a product UI — derived from fetched metadata only (no invented screenshots).",
+        "Given one or more inspo page URLs, return a compact brief: visual style tags, layout notes, typography/color cues, interaction notes, and why it might inspire a product UI — derived from fetched metadata only (no invented screenshots). When pages have working thumbnails, also embeds image blocks for visual review." +
+        VISUAL_TOOL_SUFFIX,
       inputSchema: {
         urls: z
           .array(z.string().url())
@@ -178,7 +180,11 @@ export function createLookbookServer(): McpServer {
     async ({ urls }) => {
       try {
         const brief = await buildReviewBrief(urls);
-        return jsonResult(brief);
+        const pages = brief.pages.map(scrubDeadThumbUrls);
+        return await visualResultForItems(pages, (scrubbedPages) => ({
+          ...brief,
+          pages: scrubbedPages,
+        }));
       } catch (err) {
         return errorResult(err);
       }

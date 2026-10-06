@@ -1,6 +1,6 @@
 # Lookbook
 
-**Lookbook** is a remote MCP server for browsing design-inspiration galleries and reviewing pages as structured JSON — without inventing screenshots.
+**Lookbook** is a remote MCP server for browsing design-inspiration galleries and reviewing pages as structured JSON — with real screenshot **image content blocks** so clients can showcase designs in chat (never inventing pixels).
 
 ## Connect Lookbook (remote — recommended)
 
@@ -72,16 +72,28 @@ npm run start:stdio
 | Tool | Purpose |
 |------|---------|
 | `list_sources` | Full catalog |
-| `browse_source` | Gallery / recent previews |
-| `get_inspo_page` | One URL → structured page |
-| `search_inspo` | Ranked search (default ~6 hits) |
-| `review_brief` | Compact design review brief |
+| `browse_source` | Gallery / recent previews + embedded screenshots |
+| `get_inspo_page` | One URL → structured page + embedded screenshot |
+| `search_inspo` | Ranked search (default ~6 hits) + embedded screenshots |
+| `review_brief` | Compact design review brief (+ images when thumbs work) |
+
+### Visual showcase (MCP image blocks)
+
+`search_inspo`, `browse_source`, `get_inspo_page`, and `review_brief` return **multi-part MCP content**:
+
+1. A short text instruction that clients **MUST** show images inline in chat (image + caption + link).
+2. Structured JSON metadata (`title`, `url`, `sourceId`, `tags`, …) for citation.
+3. Up to **N** MCP `ImageContent` blocks (`type: "image"`, base64 + `mimeType`) for the top curated picks with working thumbnails.
+
+Server `instructions` (returned on `initialize`) and tool descriptions repeat the same showcase rule so agents do not dump text-only URLs.
+
+Images are fetched, resized (max width ~900px), and JPEG-compressed before base64. Failed fetches (including known-dead Mobbin supabase `app_screens` URLs) are skipped and noted — Lookbook never invents pixels. Prefer Godly / Minimal Gallery / Cosmos CDN thumbs when available.
 
 ## Example: “Hey Lookbook, find me a dashboard design”
 
 1. Agent calls `search_inspo` with that query.
-2. Lookbook fans out to Mobbin + other priority sources and ranks results.
-3. Optionally `get_inspo_page` / `review_brief` on the best URLs.
+2. Lookbook fans out to priority sources, ranks results, and embeds top screenshots as image blocks.
+3. The client should render those images inline; optionally call `get_inspo_page` / `review_brief` on the best URLs.
 
 ## Scripts
 
@@ -114,6 +126,10 @@ Shared public instances use in-memory caching of fetched HTML (~15 min) and a pe
 | `LOOKBOOK_RATE_LIMIT_RPM` | `60` | Max MCP requests per IP per minute |
 | `LOOKBOOK_STATELESS` | unset | Set `1` for session-less `/mcp` (some gateways) |
 | `LOOKBOOK_ALLOWED_HOSTS` | unset | Optional comma-separated Host allowlist (omit for public tunnels) |
+| `LOOKBOOK_EMBED_IMAGES_MAX` | `4` | Max screenshots to embed as MCP image blocks (`0` disables) |
+| `LOOKBOOK_EMBED_MAX_WIDTH` | `900` | Max width (px) when resizing embeds |
+| `LOOKBOOK_EMBED_JPEG_QUALITY` | `72` | JPEG quality for compressed embeds |
+| `LOOKBOOK_EMBED_MAX_BYTES` | `450000` | Skip embed if compressed image still exceeds this size |
 
 ## License
 
