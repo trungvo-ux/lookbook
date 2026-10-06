@@ -71,6 +71,7 @@ describe("Lookbook HTTP MCP", () => {
     expect(jsonMatch).toBeTruthy();
     const payload = JSON.parse(jsonMatch![0]!);
     expect(payload.result.serverInfo.name).toBe("lookbook");
+    expect(payload.result.instructions).toMatch(/MUST display each returned image INLINE/i);
 
     // tools/list on same session
     const toolsRes = await fetch(`${base}/mcp`, {
@@ -94,6 +95,7 @@ describe("Lookbook HTTP MCP", () => {
     expect(toolsText).toContain("browse_source");
     expect(toolsText).toContain("get_inspo_page");
     expect(toolsText).toContain("review_brief");
+    expect(toolsText).toMatch(/ImageContent|inline in chat/i);
   });
 
   it("rejects tool call without session", async () => {
